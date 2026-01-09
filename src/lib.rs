@@ -533,7 +533,41 @@ pub struct NewWindowFeatures {
   pub opener: NewWindowOpener,
 }
 
+/// Permission types that can be requested by the webview.
+///
+/// See [`WebViewBuilder::with_permission_handler`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PermissionKind {
+  /// Microphone access permission.
+  Microphone,
+  /// Camera access permission.
+  Camera,
+  /// Geolocation access permission.
+  Geolocation,
+  /// Notifications permission.
+  Notifications,
+  /// Clipboard read permission.
+  ClipboardRead,
+  /// Other unrecognized permission type.
+  Other,
+}
+
+/// Response for permission requests.
+///
+/// See [`WebViewBuilder::with_permission_handler`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionResponse {
+  /// Grant the permission.
+  Allow,
+  /// Deny the permission.
+  Deny,
+  /// Use default behavior (show system prompt).
+  #[default]
+  Default,
+}
+
 /// An id for a webview
+
 pub type WebViewId<'a> = &'a str;
 
 pub struct WebViewAttributes<'a> {
@@ -792,6 +826,31 @@ pub struct WebViewAttributes<'a> {
 
   /// Whether JavaScript should be disabled.
   pub javascript_disabled: bool,
+
+  /// A handler to intercept permission requests from the webview.
+  ///
+  /// The handler receives the [`PermissionKind`] and should return
+  /// the desired [`PermissionResponse`].
+  ///
+  /// ## Platform-specific:
+  ///
+  /// - **Windows**: Fully supported via WebView2's PermissionRequested event.
+  /// - **macOS / iOS / Linux / Android**: Not yet implemented, handler is ignored.
+  ///
+  /// ## Example
+  ///
+  /// ```no_run
+  /// # use wry::{WebViewBuilder, PermissionKind, PermissionResponse};
+  /// let webview = WebViewBuilder::new()
+  ///     .with_permission_handler(|kind| {
+  ///         match kind {
+  ///             PermissionKind::Microphone => PermissionResponse::Allow,
+  ///             PermissionKind::Camera => PermissionResponse::Allow,
+  ///             _ => PermissionResponse::Default,
+  ///         }
+  ///     });
+  /// ```
+  pub permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
 }
 
 impl Default for WebViewAttributes<'_> {
@@ -834,6 +893,7 @@ impl Default for WebViewAttributes<'_> {
       }),
       background_throttling: None,
       javascript_disabled: false,
+      permission_handler: None,
     }
   }
 }
@@ -1243,6 +1303,37 @@ impl<'a> WebViewBuilder<'a> {
   /// `true` allows to navigate and `false` does not.
   pub fn with_navigation_handler(mut self, callback: impl Fn(String) -> bool + 'static) -> Self {
     self.attrs.navigation_handler = Some(Box::new(callback));
+    self
+  }
+
+  /// Set a handler to intercept permission requests from the webview.
+  ///
+  /// The handler receives the [`PermissionKind`] and should return
+  /// the desired [`PermissionResponse`].
+  ///
+  /// ## Platform-specific:
+  ///
+  /// - **Windows**: Fully supported via WebView2's PermissionRequested event.
+  /// - **macOS / iOS / Linux / Android**: Not yet implemented, handler is ignored.
+  ///
+  /// ## Example
+  ///
+  /// ```no_run
+  /// # use wry::{WebViewBuilder, PermissionKind, PermissionResponse};
+  /// let webview = WebViewBuilder::new()
+  ///     .with_permission_handler(|kind| {
+  ///         match kind {
+  ///             PermissionKind::Microphone => PermissionResponse::Allow,
+  ///             PermissionKind::Camera => PermissionResponse::Allow,
+  ///             _ => PermissionResponse::Default,
+  ///         }
+  ///     });
+  /// ```
+  pub fn with_permission_handler<F>(mut self, handler: F) -> Self
+  where
+    F: Fn(PermissionKind) -> PermissionResponse + 'static,
+  {
+    self.attrs.permission_handler = Some(Box::new(handler));
     self
   }
 

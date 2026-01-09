@@ -567,7 +567,6 @@ pub enum PermissionResponse {
 }
 
 /// An id for a webview
-
 pub type WebViewId<'a> = &'a str;
 
 pub struct WebViewAttributes<'a> {
@@ -852,7 +851,7 @@ pub struct WebViewAttributes<'a> {
   ///         }
   ///     });
   /// ```
-  pub permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
+  pub permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse + Send + Sync>>,
 }
 
 impl Default for WebViewAttributes<'_> {
@@ -1333,7 +1332,7 @@ impl<'a> WebViewBuilder<'a> {
   /// ```
   pub fn with_permission_handler<F>(mut self, handler: F) -> Self
   where
-    F: Fn(PermissionKind) -> PermissionResponse + 'static,
+    F: Fn(PermissionKind) -> PermissionResponse + Send + Sync + 'static,
   {
     self.attrs.permission_handler = Some(Box::new(handler));
     self

@@ -6,9 +6,9 @@
 use std::{cell::RefCell, ptr::null_mut, rc::Rc};
 
 use block2::Block;
-#[cfg(target_os = "macos")]
-use objc2::DefinedClass;
-use objc2::{define_class, msg_send, rc::Retained, runtime::NSObject, MainThreadOnly};
+use objc2::{
+  define_class, msg_send, rc::Retained, runtime::NSObject, DefinedClass, MainThreadOnly,
+};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSModalResponse, NSModalResponseOK, NSOpenPanel, NSWindowDelegate};
 use objc2_foundation::{MainThreadMarker, NSObjectProtocol};
@@ -86,7 +86,7 @@ pub struct WryWebViewUIDelegateIvars {
     Option<Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>>,
   #[cfg(target_os = "macos")]
   new_windows: Rc<RefCell<Vec<NewWindow>>>,
-  permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
+  permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse + Send + Sync>>,
 }
 
 define_class!(
@@ -291,7 +291,7 @@ impl WryWebViewUIDelegate {
     new_window_req_handler: Option<
       Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>,
     >,
-    permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
+    permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse + Send + Sync>>,
   ) -> Retained<Self> {
     #[cfg(target_os = "ios")]
     let _new_window_req_handler = new_window_req_handler;

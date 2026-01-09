@@ -13,6 +13,7 @@ use gdkx11::{
 };
 #[cfg(feature = "x11")]
 use gtk::glib::{self, translate::FromGlibPtrFull};
+use gtk::glib::{Cast, IsA};
 use gtk::{
   gdk::{self},
   gio::Cancellable,
@@ -38,9 +39,9 @@ use webkit2gtk::{
   AutoplayPolicy, CookieManagerExt, InputMethodContextExt, LoadEvent, NavigationPolicyDecision,
   NavigationPolicyDecisionExt, NetworkProxyMode, NetworkProxySettings, PermissionRequestExt,
   PolicyDecisionType, PrintOperationExt, SettingsExt, URIRequest, URIRequestExt,
-  UserContentInjectedFrames, UserContentManager, UserContentManagerExt, UserMediaPermissionRequest,
-  UserScript, UserScriptInjectionTime, WebContextExt as Webkit2gtkWeContextExt, WebView,
-  WebViewExt, WebsiteDataManagerExt, WebsiteDataManagerExtManual, WebsitePolicies,
+  UserMediaPermissionRequestExt, UserScript, UserScriptInjectionTime,
+  WebContextExt as Webkit2gtkWeContextExt, WebView, WebViewExt, WebsiteDataManagerExt,
+  WebsiteDataManagerExtManual, WebsitePolicies,
 };
 use webkit2gtk_sys::{
   webkit_get_major_version, webkit_get_micro_version, webkit_get_minor_version,

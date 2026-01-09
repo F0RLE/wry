@@ -512,47 +512,57 @@ impl InnerWebView {
     }
 
     // Permission handler
-    if let Some(permission_handler) = attributes.permission_handler.take() {
-      let permission_handler = Rc::new(permission_handler);
-      unsafe {
-        webview.add_PermissionRequested(
-          &PermissionRequestedEventHandler::create(Box::new(move |_, args| {
-            let Some(args) = args else { return Ok(()) };
+    // We modify this to ALWAYS register a handler, so we can support default auto-allow
+    // even if no specific handler is provided.
+    let permission_handler = attributes.permission_handler.take().map(Rc::new);
 
-            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
-            args.PermissionKind(&mut kind)?;
+    unsafe {
+      webview.add_PermissionRequested(
+        &PermissionRequestedEventHandler::create(Box::new(move |_, args| {
+          let Some(args) = args else { return Ok(()) };
 
-            // Convert WebView2 permission kind to our PermissionKind
-            let permission_kind = match kind {
-              COREWEBVIEW2_PERMISSION_KIND_MICROPHONE => PermissionKind::Microphone,
-              COREWEBVIEW2_PERMISSION_KIND_CAMERA => PermissionKind::Camera,
-              COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION => PermissionKind::Geolocation,
-              COREWEBVIEW2_PERMISSION_KIND_NOTIFICATIONS => PermissionKind::Notifications,
-              COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ => PermissionKind::ClipboardRead,
-              _ => PermissionKind::Other,
-            };
+          let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+          args.PermissionKind(&mut kind)?;
 
-            // Call user's permission handler
-            let response = permission_handler(permission_kind);
+          // Convert WebView2 permission kind to our PermissionKind
+          let permission_kind = match kind {
+            COREWEBVIEW2_PERMISSION_KIND_MICROPHONE => PermissionKind::Microphone,
+            COREWEBVIEW2_PERMISSION_KIND_CAMERA => PermissionKind::Camera,
+            COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION => PermissionKind::Geolocation,
+            COREWEBVIEW2_PERMISSION_KIND_NOTIFICATIONS => PermissionKind::Notifications,
+            COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ => PermissionKind::ClipboardRead,
+            _ => PermissionKind::Other,
+          };
 
-            // Apply the response
-            match response {
-              PermissionResponse::Allow => {
-                args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
-              }
-              PermissionResponse::Deny => {
-                args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
-              }
-              PermissionResponse::Default => {
-                // Do nothing, let WebView2 show default prompt
-              }
+          // Call user's permission handler OR fallback to default policy
+          let response = if let Some(handler) = &permission_handler {
+            handler(permission_kind)
+          } else {
+            // Default Allow Policy for Microphone/Camera if no handler is provided.
+            // This acts as a fallback for frameworks that do not yet expose the permission_handler API.
+            match permission_kind {
+              PermissionKind::Microphone | PermissionKind::Camera => PermissionResponse::Allow,
+              _ => PermissionResponse::Default,
             }
+          };
 
-            Ok(())
-          })),
-          &mut token,
-        )?;
-      }
+          // Apply the response
+          match response {
+            PermissionResponse::Allow => {
+              args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+            }
+            PermissionResponse::Deny => {
+              args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
+            }
+            PermissionResponse::Default => {
+              // Do nothing, let WebView2 show default prompt
+            }
+          }
+
+          Ok(())
+        })),
+        &mut token,
+      )?;
     }
 
     // Navigation

@@ -21,7 +21,7 @@ use objc2_web_kit::{
   WKFrameInfo, WKMediaCaptureType, WKPermissionDecision, WKSecurityOrigin, WKUIDelegate,
 };
 
-use crate::{NewWindowFeatures, NewWindowResponse, WryWebView};
+use crate::{NewWindowFeatures, NewWindowResponse, PermissionKind, PermissionResponse, WryWebView};
 
 #[cfg(target_os = "macos")]
 struct NewWindow {
@@ -86,6 +86,7 @@ pub struct WryWebViewUIDelegateIvars {
     Option<Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>>,
   #[cfg(target_os = "macos")]
   new_windows: Rc<RefCell<Vec<NewWindow>>>,
+  permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
 }
 
 define_class!(
@@ -132,11 +133,30 @@ define_class!(
       _webview: &WryWebView,
       _origin: &WKSecurityOrigin,
       _frame: &WKFrameInfo,
-      _capture_type: WKMediaCaptureType,
+      capture_type: WKMediaCaptureType,
       decision_handler: &Block<dyn Fn(WKPermissionDecision)>,
     ) {
-      //https://developer.apple.com/documentation/webkit/wkpermissiondecision?language=objc
-      (*decision_handler).call((WKPermissionDecision::Grant,));
+      // Determine permission kind based on capture type
+      let permission_kind = match capture_type {
+        WKMediaCaptureType::Camera => PermissionKind::Camera,
+        WKMediaCaptureType::Microphone => PermissionKind::Microphone,
+        WKMediaCaptureType::CameraAndMicrophone => PermissionKind::Microphone, // Treat as microphone for now
+        _ => PermissionKind::Other,
+      };
+
+      // Call user's permission handler if set
+      let decision = if let Some(handler) = &self.ivars().permission_handler {
+        match handler(permission_kind) {
+          PermissionResponse::Allow => WKPermissionDecision::Grant,
+          PermissionResponse::Deny => WKPermissionDecision::Deny,
+          PermissionResponse::Default => WKPermissionDecision::Grant, // Default to grant for backwards compatibility
+        }
+      } else {
+        // No handler set, default to grant (backwards compatible behavior)
+        WKPermissionDecision::Grant
+      };
+
+      (*decision_handler).call((decision,));
     }
 
     #[cfg(target_os = "macos")]
@@ -271,6 +291,7 @@ impl WryWebViewUIDelegate {
     new_window_req_handler: Option<
       Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>,
     >,
+    permission_handler: Option<Box<dyn Fn(PermissionKind) -> PermissionResponse>>,
   ) -> Retained<Self> {
     #[cfg(target_os = "ios")]
     let _new_window_req_handler = new_window_req_handler;
@@ -282,6 +303,7 @@ impl WryWebViewUIDelegate {
         new_window_req_handler,
         #[cfg(target_os = "macos")]
         new_windows: Rc::new(RefCell::new(vec![])),
+        permission_handler,
       });
     unsafe { msg_send![super(delegate), init] }
   }

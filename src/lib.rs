@@ -835,7 +835,9 @@ pub struct WebViewAttributes<'a> {
   /// ## Platform-specific:
   ///
   /// - **Windows**: Fully supported via WebView2's PermissionRequested event.
-  /// - **macOS / iOS / Linux / Android**: Not yet implemented, handler is ignored.
+  /// - **macOS / iOS**: Fully supported via WKUIDelegate's requestMediaCapturePermission.
+  /// - **Linux**: Fully supported via WebKitGTK's permission-request signal.
+  /// - **Android**: Not yet implemented, handler is ignored.
   ///
   /// ## Example
   ///

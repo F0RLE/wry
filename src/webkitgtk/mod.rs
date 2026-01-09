@@ -36,11 +36,11 @@ use std::{
 use webkit2gtk::WebInspectorExt;
 use webkit2gtk::{
   AutoplayPolicy, CookieManagerExt, InputMethodContextExt, LoadEvent, NavigationPolicyDecision,
-  NavigationPolicyDecisionExt, NetworkProxyMode, NetworkProxySettings, PolicyDecisionType,
-  PrintOperationExt, SettingsExt, URIRequest, URIRequestExt, UserContentInjectedFrames,
-  UserContentManager, UserContentManagerExt, UserScript, UserScriptInjectionTime,
-  WebContextExt as Webkit2gtkWeContextExt, WebView, WebViewExt, WebsiteDataManagerExt,
-  WebsiteDataManagerExtManual, WebsitePolicies,
+  NavigationPolicyDecisionExt, NetworkProxyMode, NetworkProxySettings, PermissionRequestExt,
+  PolicyDecisionType, PrintOperationExt, SettingsExt, URIRequest, URIRequestExt,
+  UserContentInjectedFrames, UserContentManager, UserContentManagerExt, UserMediaPermissionRequest,
+  UserScript, UserScriptInjectionTime, WebContextExt as Webkit2gtkWeContextExt, WebView,
+  WebViewExt, WebsiteDataManagerExt, WebsiteDataManagerExtManual, WebsitePolicies,
 };
 use webkit2gtk_sys::{
   webkit_get_major_version, webkit_get_micro_version, webkit_get_minor_version,
@@ -53,7 +53,8 @@ pub use web_context::WebContextImpl;
 
 use crate::{
   proxy::ProxyConfig, web_context::WebContext, Error, NewWindowFeatures, NewWindowOpener,
-  NewWindowResponse, PageLoadEvent, Rect, Result, WebViewAttributes, RGBA,
+  NewWindowResponse, PageLoadEvent, PermissionKind, PermissionResponse, Rect, Result,
+  WebViewAttributes, RGBA,
 };
 
 use self::web_context::WebContextExt;
@@ -570,6 +571,50 @@ impl InnerWebView {
         }
 
         false
+      });
+    }
+
+    // Permission handler
+    if let Some(permission_handler) = attributes.permission_handler.take() {
+      let permission_handler = Rc::new(permission_handler);
+      webview.connect_permission_request(move |_webview, request| {
+        // Determine permission kind
+        let permission_kind = if request
+          .downcast_ref::<UserMediaPermissionRequest>()
+          .is_some()
+        {
+          let media_request = request
+            .downcast_ref::<UserMediaPermissionRequest>()
+            .unwrap();
+          if media_request.is_for_audio_device() {
+            PermissionKind::Microphone
+          } else if media_request.is_for_video_device() {
+            PermissionKind::Camera
+          } else {
+            PermissionKind::Other
+          }
+        } else {
+          // Could be GeolocationPermissionRequest, NotificationPermissionRequest, etc.
+          PermissionKind::Other
+        };
+
+        // Call user's permission handler
+        let response = permission_handler(permission_kind);
+
+        // Apply the response
+        match response {
+          PermissionResponse::Allow => {
+            request.allow();
+            true // handled
+          }
+          PermissionResponse::Deny => {
+            request.deny();
+            true // handled
+          }
+          PermissionResponse::Default => {
+            false // not handled, let WebKitGTK show default prompt
+          }
+        }
       });
     }
 

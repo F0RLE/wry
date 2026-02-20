@@ -347,6 +347,8 @@
 // #[macro_use]
 // extern crate objc;
 
+#[cfg(any(target_os = "windows", target_os = "android"))]
+mod custom_protocol_workaround;
 mod error;
 mod proxy;
 #[cfg(any(target_os = "macos", target_os = "android", target_os = "ios"))]
@@ -415,7 +417,7 @@ pub type InputAccessoryViewBuilder =
   dyn Fn(&objc2_ui_kit::UIView) -> Option<Retained<objc2_ui_kit::UIView>>;
 
 /// A rectangular region.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rect {
   /// Rect position.
   pub position: dpi::Position,
@@ -595,7 +597,8 @@ pub struct WebViewAttributes<'a> {
   ///
   /// ## Platform-specific:
   ///
-  /// - **macOS**: Not implemented.
+  /// - **macOS**: Disables the default white WKWebView background via the `drawsBackground` KVC key
+  ///   (same as the `transparent` feature) and sets `underPageBackgroundColor` (macOS 12+) for overscroll areas.
   /// - **Windows**:
   ///   - On Windows 7, transparency is not supported and the alpha value will be ignored.
   ///   - On Windows higher than 7: translucent colors are not supported so any alpha value other than `0` will be replaced by `255`
@@ -625,7 +628,7 @@ pub struct WebViewAttributes<'a> {
   ///
   /// The Page loaded from html string will have `null` origin.
   ///
-  /// ## PLatform-specific:
+  /// ## Platform-specific:
   ///
   /// - **Windows:** the string can not be larger than 2 MB (2 * 1024 * 1024 bytes) in total size
   pub html: Option<String>,
@@ -979,7 +982,8 @@ impl<'a> WebViewBuilder<'a> {
   ///
   /// ## Platfrom-specific:
   ///
-  /// - **macOS**: Not implemented.
+  /// - **macOS**: Disables the default white WKWebView background via the `drawsBackground` KVC key
+  ///   (same as the `transparent` feature) and sets `underPageBackgroundColor` (macOS 12+) for overscroll areas.
   /// - **Windows**:
   ///   - on Windows 7, transparency is not supported and the alpha value will be ignored.
   ///   - on Windows higher than 7: translucent colors are not supported so any alpha value other than `0` will be replaced by `255`
@@ -1219,6 +1223,12 @@ impl<'a> WebViewBuilder<'a> {
   /// ## Note
   ///
   /// Data URLs are not supported, use [`html`](Self::with_html) option instead.
+  ///
+  /// ## Platform-specific:
+  ///
+  /// - **Windows and Android:** if the URL's scheme is a registered custom protocol,
+  ///   a work around is used that changes the URL this navigates to
+  ///   from `{protocol}://localhost/abc` to `{http_or_https}://{protocol}.localhost/abc`
   pub fn with_url_and_headers(mut self, url: impl Into<String>, headers: http::HeaderMap) -> Self {
     self.attrs.url = Some(url.into());
     self.attrs.headers = Some(headers);
@@ -1231,6 +1241,12 @@ impl<'a> WebViewBuilder<'a> {
   /// ## Note
   ///
   /// Data URLs are not supported, use [`html`](Self::with_html) option instead.
+  ///
+  /// ## Platform-specific:
+  ///
+  /// - **Windows and Android:** if the URL's scheme is a registered custom protocol,
+  ///   a work around is used that changes the URL this navigates to
+  ///   from `{protocol}://localhost/abc` to `{http_or_https}://{protocol}.localhost/abc`
   pub fn with_url(mut self, url: impl Into<String>) -> Self {
     self.attrs.url = Some(url.into());
     self.attrs.headers = None;
@@ -1250,7 +1266,7 @@ impl<'a> WebViewBuilder<'a> {
   ///
   /// The Page loaded from html string will have `null` origin.
   ///
-  /// ## PLatform-specific:
+  /// ## Platform-specific:
   ///
   /// - **Windows:** the string can not be larger than 2 MB (2 * 1024 * 1024 bytes) in total size
   pub fn with_html(mut self, html: impl Into<String>) -> Self {
@@ -2188,7 +2204,8 @@ impl WebView {
   ///
   /// ## Platfrom-specific:
   ///
-  /// - **macOS**: Not implemented.
+  /// - **macOS**: Disables the default white WKWebView background via the `drawsBackground` KVC key
+  ///   (same as the `transparent` feature) and sets `underPageBackgroundColor` (macOS 12+) for overscroll areas.
   /// - **Windows**:
   ///   - On Windows 7, transparency is not supported and the alpha value will be ignored.
   ///   - On Windows higher than 7: translucent colors are not supported so any alpha value other than `0` will be replaced by `255`

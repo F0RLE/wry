@@ -502,6 +502,9 @@ impl InnerWebView {
             args.PermissionKind(&mut kind)?;
             if kind == COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ {
               args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+              if let Ok(args2) = args.cast::<ICoreWebView2PermissionRequestedEventArgs2>() {
+                args2.SetHandled(true)?;
+              }
             }
 
             Ok(())
@@ -550,9 +553,15 @@ impl InnerWebView {
           match response {
             PermissionResponse::Allow => {
               args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+              if let Ok(args2) = args.cast::<ICoreWebView2PermissionRequestedEventArgs2>() {
+                args2.SetHandled(true)?;
+              }
             }
             PermissionResponse::Deny => {
               args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
+              if let Ok(args2) = args.cast::<ICoreWebView2PermissionRequestedEventArgs2>() {
+                args2.SetHandled(true)?;
+              }
             }
             PermissionResponse::Default => {
               // Do nothing, let WebView2 show default prompt

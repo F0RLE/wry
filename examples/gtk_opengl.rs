@@ -2,8 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use std::cell::RefCell;
-use std::rc::Rc;
+#[cfg(not(any(
+  target_os = "windows",
+  target_os = "macos",
+  target_os = "ios",
+  target_os = "android"
+)))]
+use std::{cell::RefCell, rc::Rc};
 use tao::{
   event::{Event, WindowEvent},
   event_loop::{ControlFlow, EventLoop},
